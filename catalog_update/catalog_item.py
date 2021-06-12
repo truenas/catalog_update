@@ -1,7 +1,10 @@
+import json
 import os
+import subprocess
 
 
 from catalog_validation.validation import validate_catalog_item
+from typing import Optional
 
 
 class Item:
@@ -22,3 +25,14 @@ class Item:
 
     def validate(self) -> None:
         validate_catalog_item(self.path, 'catalog_update')
+
+    def upgrade_info(self) -> Optional[dict]:
+        if not self.upgrade_strategy_defined:
+            return
+
+        cp = subprocess.Popen(self.upgrade_info_path, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = cp.communicate()
+        if cp.returncode:
+            raise subprocess.CalledProcessError(cp.returncode, cp.args, stderr=stderr)
+
+        return json.loads(stdout)
