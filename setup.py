@@ -11,4 +11,9 @@ setup(
     packages=find_packages(),
     license='GNU3',
     platforms='any',
+    entry_points={
+        'console_scripts': [
+            'catalog_update = catalog_update.scripts.catalog_update:main',
+        ],
+    },
 )

@@ -3,12 +3,12 @@ import os
 from collections import defaultdict
 
 from .catalog_item import Item
-from .exceptions import ValidationErrors, ValidationException
+from .exceptions import ValidationErrors, TrainNotFound
 
 
 def update_items_in_train(train_path):
     if not os.path.exists(train_path):
-        raise ValidationException(f'{train_path!r} does not exist')
+        raise TrainNotFound(train_path)
 
     summary = {
         'skipped': {},
