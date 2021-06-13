@@ -122,8 +122,12 @@ An example of output would be:
 
 ```
 {
-    "image": "1.1.7",
-    "debian.image": "unstable"
+    "app_version": "newversionhere",
+    "tags": {
+        "image": "1.1.7",
+        "debian.image": "unstable"
+    }
 }
 ```
 
+If `app_version` is optional and if provided, the provided version would be used for the newer catalog item version.

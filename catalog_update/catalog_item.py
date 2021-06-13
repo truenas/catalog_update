@@ -101,6 +101,21 @@ class Item:
             'required': ['repository', 'tag'],
         }
 
+    @property
+    def upgrade_strategy_output_schema(self) -> dict:
+        return {
+            'type': 'object',
+            'properties': {
+                'tags': {
+                    'type': 'object',
+                },
+                'app_version': {
+                    'type': ['string', 'null'],
+                },
+            },
+            'required': ['tags'],
+        }
+
     def upgrade_summary(self) -> dict:
         keys_details = defaultdict(lambda: {
             'value': None,
@@ -117,6 +132,7 @@ class Item:
             'upgrade_details': {
                 'filename': None,
                 'keys': keys_details,
+                'new_app_version': None,
             }
         }
         missing_files = []
@@ -182,15 +198,21 @@ class Item:
             return summary
 
         try:
-            tags_info = json.loads(cp.stdout)
+            strategy_output = json.loads(cp.stdout)
         except json.JSONDecodeError:
             summary['error'] = f'Expected json compliant output from {self.upgrade_strategy_path}'
             return summary
 
-        if not isinstance(tags_info, dict) or any(
-            not isinstance(v, str) for v in itertools.chain(tags_info.keys(), tags_info.values())
-        ):
-            summary['error'] = 'Unexpected output format specified by upgrade strategy'
+        try:
+            json_schema_validate(strategy_output, self.upgrade_strategy_output_schema)
+        except JsonValidationError as e:
+            summary['error'] = f'Unexpected output format specified by upgrade strategy: {e}'
+            return summary
+
+        summary['upgrade_details']['new_app_version'] = strategy_output.get('app_version')
+        tags_info = strategy_output['tags']
+        if any(not isinstance(v, str) for v in itertools.chain(tags_info.keys(), tags_info.values())):
+            summary['error'] = 'Unexpected output format specified by upgrade strategy for tags'
             return summary
 
         for tag in filter(lambda t: t in keys_details, tags_info):
@@ -242,8 +264,9 @@ class Item:
         with open(chart_file_path, 'r') as f:
             chart = yaml.safe_load(f.read())
 
-        # TODO: Allow changing app version as well
         chart['version'] = new_version
+        if summary['upgrade_details']['new_app_version']:
+            chart['appVersion'] = summary['upgrade_details']['new_app_version']
 
         with open(chart_file_path, 'w') as f:
             f.write(yaml.safe_dump(chart))
