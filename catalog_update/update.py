@@ -6,7 +6,7 @@ from .catalog_item import Item
 from .exceptions import ValidationErrors, TrainNotFound
 
 
-def update_items_in_train(train_path):
+def update_items_in_train(train_path: str, remove_old_versions: bool) -> dict:
     if not os.path.exists(train_path):
         raise TrainNotFound(train_path)
 
@@ -22,7 +22,7 @@ def update_items_in_train(train_path):
             summary['skipped'][item.name] = 'Validation failed'
             continue
 
-        info = item.upgrade()
+        info = item.upgrade(remove_old_versions)
         if not info['upgraded']:
             summary['skipped'][item.name] = info['error']
             continue

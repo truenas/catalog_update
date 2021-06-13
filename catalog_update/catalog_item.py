@@ -2,6 +2,7 @@ import distutils.dir_util
 import json
 import itertools
 import os
+import shutil
 import subprocess
 import yaml
 
@@ -238,15 +239,16 @@ class Item:
     def latest_version_path(self) -> str:
         return os.path.join(self.path, self.latest_version)
 
-    def upgrade(self) -> dict:
+    def upgrade(self, remove_old_version: bool = False) -> dict:
         summary = self.upgrade_summary()
         if summary['error']:
             return summary
 
+        current_version_path = self.latest_version_path
         new_path = self.bump_version_path
         new_version = new_path.rsplit('/', 1)[-1]
         distutils.dir_util._path_created = {}
-        distutils.dir_util.copy_tree(self.latest_version_path, new_path, preserve_symlinks=True)
+        distutils.dir_util.copy_tree(current_version_path, new_path, preserve_symlinks=True)
 
         with open(os.path.join(new_path, summary['upgrade_details']['filename']), 'r') as f:
             values = yaml.safe_load(f.read())
@@ -270,6 +272,9 @@ class Item:
 
         with open(chart_file_path, 'w') as f:
             f.write(yaml.safe_dump(chart))
+
+        if remove_old_version:
+            shutil.rmtree(current_version_path)
 
         summary.update({
             'upgraded': True,
