@@ -1,6 +1,5 @@
 import json
 import os
-import subprocess
 
 
 from catalog_validation.validation import validate_catalog_item
@@ -17,22 +16,18 @@ class Item:
 
     @property
     def upgrade_info_path(self) -> str:
-        return os.path.join(self.path, 'upgrade_info')
+        return os.path.join(self.path, 'upgrade_info.json')
 
     @property
-    def upgrade_strategy_defined(self) -> bool:
-        return os.path.isfile(self.upgrade_info_path) and os.access(self.upgrade_info_path, os.X_OK)
+    def upgrade_info_defined(self) -> bool:
+        return os.path.isfile(self.upgrade_info_path)
 
     def validate(self) -> None:
         validate_catalog_item(self.path, 'catalog_update')
 
     def upgrade_info(self) -> Optional[dict]:
-        if not self.upgrade_strategy_defined:
+        if not self.upgrade_info_defined:
             return
 
-        cp = subprocess.Popen(self.upgrade_info_path, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = cp.communicate()
-        if cp.returncode:
-            raise subprocess.CalledProcessError(cp.returncode, cp.args, stderr=stderr)
-
-        return json.loads(stdout)
+        with open(self.upgrade_info_path, 'r') as f:
+            return json.loads(f.read())
