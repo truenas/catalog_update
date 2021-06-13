@@ -1,13 +1,18 @@
 import json
+import itertools
 import os
-
+import subprocess
+import yaml
 
 from catalog_validation.validation import validate_catalog_item
+from collections import defaultdict
 from jsonschema import validate as json_schema_validate, ValidationError as JsonValidationError
 from pkg_resources import parse_version
 from typing import Optional
 
+from .docker_utils import get_image_tags
 from .exceptions import ValidationException
+from .utils import get, run
 
 
 class Item:
@@ -76,24 +81,115 @@ class Item:
         all_versions.sort()
         return str(all_versions[-1])
 
+    @property
+    def image_schema(self) -> dict:
+        return {
+            'type': 'object',
+            'properties': {
+                'repository': {
+                    'type': 'string',
+                },
+                'tag': {
+                    'type': 'string',
+                },
+            },
+            'required': ['repository', 'tag'],
+        }
+
     def upgrade_summary(self) -> dict:
+        keys_details = defaultdict(lambda: {
+            'value': None,
+            'available_tags': [],
+            'error': 'Unable to locate key',
+            'latest_tag': None,
+            'current_tag': None,
+        })
         summary = {
             'error': None,
             'latest_version': self.latest_version,
             'upgrade_available': False,
             'upgrade_details': {
                 'filename': None,
-                'keys': {},
+                'keys': keys_details,
             }
         }
         missing_files = []
         if not self.upgrade_info_defined:
             missing_files.append(self.upgrade_info_path)
         if not self.upgrade_strategy_defined:
-            missing_files.append(self.upgrade_strategy_defined)
+            missing_files.append(self.upgrade_strategy_path)
 
         if missing_files:
             summary['error'] = f'Missing {", ".join(missing_files)} required files'
             return summary
 
-        upgrade_info = self.upgrade_info()
+        try:
+            upgrade_info = self.upgrade_info()
+        except ValidationException as e:
+            summary['error'] = str(e)
+            return summary
+
+        values_file = os.path.join(self.path, summary['latest_version'], upgrade_info['filename'])
+        summary['upgrade_details']['filename'] = values_file
+        if not os.path.exists(values_file):
+            summary['error'] = f'{values_file!r} count not be found'
+            return summary
+
+        if not upgrade_info['keys']:
+            summary['error'] = f'No keys listed in {self.upgrade_info_path!r} for upgrade check'
+            return summary
+
+        with open(values_file, 'r') as f:
+            try:
+                values = yaml.safe_load(f.read())
+            except yaml.YAMLError:
+                summary['error'] = f'{values_file!r} is an invalid yaml file'
+                return summary
+
+        for key in upgrade_info['keys']:
+            val = get(values, key)
+            keys_details[key]['value'] = val
+            if not val:
+                continue
+            try:
+                json_schema_validate(val, self.image_schema)
+            except JsonValidationError as e:
+                keys_details[key]['error'] = f'Image format is invalid: {e}'
+                continue
+            else:
+                keys_details[key]['current_tag'] = val['tag']
+
+            try:
+                keys_details[key]['available_tags'] = get_image_tags(val['repository'])['Tags']
+            except subprocess.CalledProcessError as e:
+                keys_details[key]['error'] = f'Failed to retrieve available image tags: {e}'
+            else:
+                keys_details[key]['error'] = None
+
+        # We have information on each available image now, let's pass it to upgrade strategy
+        cp = run(
+            [self.upgrade_strategy_path, json.dumps({k: v['available_tags'] for k, v in keys_details.items()})],
+            check=False
+        )
+        if cp.returncode:
+            summary['error'] = f'Failed to retrieve latest available image tag(s): {cp.stderr}'
+            return summary
+
+        try:
+            tags_info = json.loads(cp.stdout)
+        except json.JSONDecodeError:
+            summary['error'] = f'Expected json compliant output from {self.upgrade_strategy_path}'
+            return summary
+
+        if not isinstance(tags_info, dict) or any(
+            not isinstance(v, str) for v in itertools.chain(tags_info.keys(), tags_info.values())
+        ):
+            summary['error'] = 'Unexpected output format specified by upgrade strategy'
+            return summary
+
+        for tag in filter(lambda t: t in keys_details, tags_info):
+            keys_details[tag]['latest_tag'] = tags_info[tag]
+            if tags_info[tag] != keys_details[tag]['current_tag']:
+                summary['upgrade_available'] = True
+
+        return summary
