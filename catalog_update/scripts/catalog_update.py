@@ -30,7 +30,7 @@ def main():
         **os.environ,
     }
 
-    parser = argparse.ArgumentParser(prog='scale-build')
+    parser = argparse.ArgumentParser(prog='catalog_update')
     subparsers = parser.add_subparsers(help='sub-command help', dest='action')
 
     update = subparsers.add_parser(
