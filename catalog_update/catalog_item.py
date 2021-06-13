@@ -1,3 +1,4 @@
+import distutils.dir_util
 import json
 import itertools
 import os
@@ -18,6 +19,10 @@ from .utils import get, run
 class Item:
     def __init__(self, path: str):
         self.path = path
+
+    @property
+    def name(self) -> str:
+        return self.path.split('/')[-1]
 
     @property
     def exists(self) -> bool:
@@ -108,6 +113,7 @@ class Item:
             'error': None,
             'latest_version': self.latest_version,
             'upgrade_available': False,
+            'upgraded': False,
             'upgrade_details': {
                 'filename': None,
                 'keys': keys_details,
@@ -130,7 +136,7 @@ class Item:
             return summary
 
         values_file = os.path.join(self.path, summary['latest_version'], upgrade_info['filename'])
-        summary['upgrade_details']['filename'] = values_file
+        summary['upgrade_details']['filename'] = upgrade_info['filename']
         if not os.path.exists(values_file):
             summary['error'] = f'{values_file!r} count not be found'
             return summary
@@ -192,4 +198,59 @@ class Item:
             if tags_info[tag] != keys_details[tag]['current_tag']:
                 summary['upgrade_available'] = True
 
+        if not summary['upgrade_available']:
+            summary['error'] = 'No update available'
+
+        return summary
+
+    @property
+    def bump_version(self) -> str:
+        v = parse_version(self.latest_version)
+        return str(parse_version(f'{v.major}.{v.minor}.{v.micro + 1}'))
+
+    @property
+    def bump_version_path(self) -> str:
+        return os.path.join(self.path, self.bump_version)
+
+    @property
+    def latest_version_path(self) -> str:
+        return os.path.join(self.path, self.latest_version)
+
+    def upgrade(self) -> dict:
+        summary = self.upgrade_summary()
+        if summary['error']:
+            return summary
+
+        new_path = self.bump_version_path
+        new_version = new_path.rsplit('/', 1)[-1]
+        distutils.dir_util._path_created = {}
+        distutils.dir_util.copy_tree(self.latest_version_path, new_path, preserve_symlinks=True)
+
+        with open(os.path.join(new_path, summary['upgrade_details']['filename']), 'r') as f:
+            values = yaml.safe_load(f.read())
+
+        for key, value in summary['upgrade_details']['keys'].items():
+            if value['error'] or value['latest_tag'] == value['current_tag']:
+                continue
+            image = get(values, key)
+            image['tag'] = value['latest_tag']
+
+        with open(os.path.join(new_path, summary['upgrade_details']['filename']), 'w') as f:
+            f.write(yaml.safe_dump(values))
+
+        chart_file_path = os.path.join(new_path, 'Chart.yaml')
+        with open(chart_file_path, 'r') as f:
+            chart = yaml.safe_load(f.read())
+
+        # TODO: Allow changing app version as well
+        chart['version'] = new_version
+
+        with open(chart_file_path, 'w') as f:
+            f.write(yaml.safe_dump(chart))
+
+        summary.update({
+            'upgraded': True,
+            'new_version': new_version,
+            'new_version_path': new_path,
+        })
         return summary
