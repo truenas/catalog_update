@@ -1,0 +1,4 @@
+catalog_validation
+jsonschema
+python-dotenv
+pyyaml
