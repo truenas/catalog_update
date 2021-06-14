@@ -1,7 +1,24 @@
 # Automated Updates For Catalog Item(s)
 
-### TODO: Add description here for the repository
+Catalog item(s) usually do not allow image version tags to be specified explicitly by the user which results in
+frequent upgrades for catalog item(s) whenever a newer upstream image tag is available. `catalog_update` is designed
+to allow automated upgrades of catalog item(s) where if the catalog item conforms to `catalog_update` required format,
+`catalog_update` will upgrade the version of the item with the newer available image tag.
 
+
+## Usage
+
+Catalog can be updated with the following command
+```
+docker run --rm -it -e GITHUB_TOKEN="token_here" -e GITHUB_USERNAME="git_handle_here" -e GITHUB_EMAIL="git_email_here" -v /charts:/catalog ixsystems/catalog_update
+```
+
+Following environment variables are required:
+1. GITHUB_TOKEN
+2. GITHUB_USERNAME
+3. GITHUB_EMAIL
+
+These environment variables will be used to push the changes to github.
 
 ## Catalog Item Structure
 
@@ -74,8 +91,6 @@ debian:
 The above values yaml file contains 2 images references and if we would like `catalog_update` to check for updates
 for both tags, we would refer to both keys in `upgrade_info.json` i.e `image` and `postgres.image`, nested
 dictionary keys are separated by `.`.
-
-######  Todo: document how to specify keys having dots in it
 
 #### 2. `upgrade_strategy`
 
