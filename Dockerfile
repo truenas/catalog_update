@@ -17,4 +17,4 @@ WORKDIR ${WORK_DIR}
 ADD . ${WORK_DIR}/
 RUN pip install -r requirements.txt
 RUN pip install -U .
-ENTRYPOINT ["catalog_update", "update", "-p", "-r", "--path", "/train"]
+ENTRYPOINT ["catalog_update", "update", "-p", "-r", "--path", "/catalog"]

@@ -1,6 +1,8 @@
 import os
 import subprocess
 
+from .exceptions import CalledProcessError
+
 
 def run(*args, **kwargs) -> subprocess.CompletedProcess:
     if isinstance(args[0], list):
@@ -19,7 +21,7 @@ def run(*args, **kwargs) -> subprocess.CompletedProcess:
 
     cp = subprocess.CompletedProcess(args, proc.returncode, stdout=stdout, stderr=stderr)
     if check and cp.returncode:
-        raise subprocess.CalledProcessError(cp.returncode, cp.args, stderr=stderr)
+        raise CalledProcessError(cp.returncode, cp.args, stderr=stderr)
     return cp
 
 
