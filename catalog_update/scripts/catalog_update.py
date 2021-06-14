@@ -6,7 +6,7 @@ import textwrap
 
 from catalog_update.exceptions import TrainNotFound
 from catalog_update.git_utils import (
-    create_pull_request, checkout_branch, checkout_and_update_branch, commit_changes,generate_branch_name, push_changes,
+    create_pull_request, checkout_branch, checkout_and_update_branch, commit_changes, generate_branch_name, push_changes
 )
 from catalog_update.update import update_items_in_train
 from dotenv import dotenv_values
@@ -62,7 +62,7 @@ def validate_config() -> None:
 
 
 def push_changes_upstream(train_path: str, summary: dict, branch: str) -> None:
-    print(f'[\033[92mOK\x1B[0m]\tPushing changed items upstream')
+    print('[\033[92mOK\x1B[0m]\tPushing changed items upstream')
     try:
         config = get_config()
         message = textwrap.dedent(f'''Upgraded catalog item(s)
