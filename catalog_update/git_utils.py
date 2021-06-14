@@ -1,3 +1,5 @@
+import uuid
+
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -31,5 +33,9 @@ def get_origin_uri(path: str) -> str:
     return run(['git', '-C', path, 'remote', 'get-url', 'origin']).stdout.strip()
 
 
-def create_pull_request(path: str, config: Optional[dict]) -> None:
+def create_pull_request(path: str, branch: str, config: Optional[dict]) -> None:
     run(f'cd {path} && gh pr create -f', shell=True, env=config)
+
+
+def generate_branch_name():
+    return f'catalog-update-{str(uuid.uuid4())[-4:]}'

@@ -1,3 +1,4 @@
+import os
 import subprocess
 
 
@@ -8,9 +9,11 @@ def run(*args, **kwargs) -> subprocess.CompletedProcess:
     kwargs.setdefault('stderr', subprocess.PIPE)
     check = kwargs.pop('check', True)
     shell = kwargs.pop('shell', False)
+    env = kwargs.pop('env', None) or os.environ
 
     proc = subprocess.Popen(
-        args, stdout=kwargs['stdout'], stderr=kwargs['stderr'], shell=shell, encoding='utf8', errors='ignore'
+        args, stdout=kwargs['stdout'], stderr=kwargs['stderr'], shell=shell,
+        encoding='utf8', errors='ignore', env=env
     )
     stdout, stderr = proc.communicate()
 
