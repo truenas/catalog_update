@@ -134,6 +134,7 @@ class Item:
                 'filename': None,
                 'keys': keys_details,
                 'new_app_version': None,
+                'test_filename': None,
             }
         }
         missing_files = []
@@ -154,6 +155,7 @@ class Item:
 
         values_file = os.path.join(self.path, summary['latest_version'], upgrade_info['filename'])
         summary['upgrade_details']['filename'] = upgrade_info['filename']
+        summary['upgrade_details']['test_filename'] = upgrade_info.get('test_filename')
         if not os.path.exists(values_file):
             summary['error'] = f'{values_file!r} count not be found'
             return summary
@@ -261,6 +263,22 @@ class Item:
 
         with open(os.path.join(new_path, summary['upgrade_details']['filename']), 'w') as f:
             f.write(yaml.safe_dump(values))
+
+        test_values_path = os.path.join(new_path, summary['upgrade_details']['test_filename'] or '')
+        if summary['upgrade_details']['test_filename'] and os.path.exists(test_values_path):
+            with open(os.path.join(test_values_path), 'r') as f:
+                test_values = yaml.safe_load(f.read())
+
+            for key, value in summary['upgrade_details']['keys'].items():
+                if value['error'] or value['latest_tag'] == value['current_tag']:
+                    continue
+                image = get(test_values, key)
+                if not image:
+                    continue
+                image['tag'] = value['latest_tag']
+
+            with open(test_values_path, 'w') as f:
+                f.write(yaml.safe_dump(test_values))
 
         chart_file_path = os.path.join(new_path, 'Chart.yaml')
         with open(chart_file_path, 'r') as f:
