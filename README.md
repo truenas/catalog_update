@@ -65,7 +65,8 @@ format:
     "keys": [
         "image",
         "debian.image"
-    ]
+    ],
+    "test_filename": "test_values.yaml"
 }
 ```
 
@@ -91,6 +92,10 @@ debian:
 The above values yaml file contains 2 images references and if we would like `catalog_update` to check for updates
 for both tags, we would refer to both keys in `upgrade_info.json` i.e `image` and `postgres.image`, nested
 dictionary keys are separated by `.`.
+
+For some catalog(s) which is using CI to validate the changed item version(s), it's possible that they have another
+values file which is only used in the CI. In such cases, the name of the test file can be specified and `catalog_update`
+would look for the same keys as it did for `filename` and update the relevant keys with the newer image tags.
 
 #### 2. `upgrade_strategy`
 
