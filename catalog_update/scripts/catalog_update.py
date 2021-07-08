@@ -99,7 +99,7 @@ def main() -> None:
         'update', help='Update version of catalog item(s) if newer image versions are available'
     )
     update.add_argument('--path', help='Specify path to a valid TrueNAS compliant catalog', required=True)
-    update.add_argument('--train', help='Specify name of train in TrueNAS compliant catalog', default='charts')
+    update.add_argument('--train', help='Specify name of train in TrueNAS compliant catalog', default='test')
     update.add_argument(
         '--remove-old-versions', '-r', action='store_true', help='Remove old version of catalog item', default=False
     )
