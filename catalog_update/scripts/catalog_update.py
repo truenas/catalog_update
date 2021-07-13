@@ -90,6 +90,20 @@ def checkout_update_repo(path: str, branch: str) -> None:
         exit(1)
 
 
+def update_action(path: str, train: str, remove_old_versions: bool, push: bool):
+    branch_name = generate_branch_name()
+    if push:
+        validate_config()
+        checkout_update_repo(path, branch_name)
+
+    summary = update_items(path, remove_old_versions, train)
+    if push:
+        if summary['upgraded']:
+            push_changes_upstream(path, summary, branch_name)
+        else:
+            print('[\033[91mNo Items upgraded\x1B[0m]')
+
+
 def main() -> None:
     # TODO: Improve git commit/push workflow allowing more customization in next cycle
     parser = argparse.ArgumentParser(prog='catalog_update')
@@ -110,17 +124,7 @@ def main() -> None:
 
     args = parser.parse_args()
     if args.action == 'update':
-        branch_name = generate_branch_name()
-        if args.push:
-            validate_config()
-            checkout_update_repo(args.path, branch_name)
-
-        summary = update_items(args.path, args.remove_old_versions, args.train)
-        if args.push:
-            if summary['upgraded']:
-                push_changes_upstream(args.path, summary, branch_name)
-            else:
-                print('[\033[91mNo Items upgraded\x1B[0m]')
+        update_action(args.path, args.train, args.remove_old_versions,args.push)
     else:
         parser.print_help()
 
