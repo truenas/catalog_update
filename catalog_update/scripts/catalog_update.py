@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 import argparse
+import distutils.dir_util
 import functools
 import os
+import shutil
 import textwrap
 
 from catalog_update.exceptions import TrainNotFound
@@ -11,6 +13,7 @@ from catalog_update.git_utils import (
 from catalog_update.update import update_items_in_train
 from dotenv import dotenv_values
 from jsonschema import validate as json_schema_validate, ValidationError as JsonValidationError
+from pkg_resources import parse_version
 
 
 def update_items(catalog_path: str, remove_old_versions: bool, train_name: str) -> dict:
@@ -90,7 +93,9 @@ def checkout_update_repo(path: str, branch: str) -> None:
         exit(1)
 
 
-def update_action(path: str, train: str, remove_old_versions: bool, push: bool):
+def update_action(
+    path: str, train: str, stable_train: str, remove_old_versions: bool, push: bool, update_stable_train: bool,
+):
     branch_name = generate_branch_name()
     if push:
         validate_config()
@@ -100,6 +105,34 @@ def update_action(path: str, train: str, remove_old_versions: bool, push: bool):
     if push:
         if summary['upgraded']:
             push_changes_upstream(path, summary, branch_name)
+            if update_stable_train:
+                print('[\033[91mUpdating stable train\x1B[0m]')
+                stable_train_path = os.path.join(path, stable_train)
+                if not os.path.exists(stable_train_path):
+                    print(f'[\033[91mFAILED\x1B[0m]\t{stable_train!r} does not exist')
+                    exit(1)
+                for item_name, details in summary['upgraded'].items():
+                    test_item_path = os.path.join(path, train, item_name, details['new_version'])
+                    stable_item_path = os.path.join(stable_train_path, item_name)
+                    if not os.path.exists(stable_item_path):
+                        print(
+                            f'[\033[91mSkipping {item_name!r} update as it cannot be '
+                            f'found in {stable_train!r} train\x1B[0m]'
+                        )
+                        continue
+                    distutils.dir_util._path_created = {}
+                    distutils.dir_util.copy_tree(
+                        test_item_path, os.path.join(stable_item_path, details['new_version']),
+                        preserve_symlinks=True
+                    )
+                    if remove_old_versions:
+                        for version in sorted(
+                            map(parse_version, filter(
+                                lambda p: os.path.isdir(stable_item_path, p), os.listdir(stable_item_path)
+                            )),
+                            reverse=True
+                        )[1:]:
+                            shutil.rmtree(os.path.join(stable_item_path, str(version)))
         else:
             print('[\033[91mNo Items upgraded\x1B[0m]')
 
@@ -121,10 +154,17 @@ def main() -> None:
         '--push', '-p', action='store_true', help='Push changes to git repository with provided credentials',
         default=False
     )
+    update.add_argument(
+        '--update-stable-train', '-su', action='store_true', help='Update stable train',
+        default=False
+    )
+    update.add_argument('--stable-train', help='Specify name of stable in TrueNAS compliant catalog', default='charts')
 
     args = parser.parse_args()
     if args.action == 'update':
-        update_action(args.path, args.train, args.remove_old_versions,args.push)
+        update_action(
+            args.path, args.train, args.stable_train, args.remove_old_versions, args.push, args.update_stable_train
+        )
     else:
         parser.print_help()
 
