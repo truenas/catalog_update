@@ -104,7 +104,6 @@ def update_action(
     summary = update_items(path, remove_old_versions, train)
     if push:
         if summary['upgraded']:
-            push_changes_upstream(path, summary, branch_name)
             if update_stable_train:
                 print('[\033[91mUpdating stable train\x1B[0m]')
                 stable_train_path = os.path.join(path, stable_train)
@@ -128,11 +127,12 @@ def update_action(
                     if remove_old_versions:
                         for version in sorted(
                             map(parse_version, filter(
-                                lambda p: os.path.isdir(stable_item_path, p), os.listdir(stable_item_path)
+                                lambda p: os.path.isdir(os.path.join(stable_item_path, p)), os.listdir(stable_item_path)
                             )),
                             reverse=True
                         )[1:]:
                             shutil.rmtree(os.path.join(stable_item_path, str(version)))
+            push_changes_upstream(path, summary, branch_name)
         else:
             print('[\033[91mNo Items upgraded\x1B[0m]')
 
