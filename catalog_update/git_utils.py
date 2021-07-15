@@ -41,7 +41,7 @@ def get_origin_uri(path: str) -> str:
 
 
 def create_pull_request(path: str, base_branch: str, branch: str, config: Optional[dict] = None) -> None:
-    run(f'cd {path} && gh pr create -f -B {base_branch} -H {branch}', shell=True, env=config)
+    run(f'cd {path} && gh pr create -f -B {base_branch} -H {branch} -r sonicaj', shell=True, env=config)
 
 
 def generate_branch_name():
