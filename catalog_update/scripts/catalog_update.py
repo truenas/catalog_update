@@ -44,6 +44,7 @@ def get_config() -> dict:
     config.setdefault('GITHUB_BASE', 'master')
     config.setdefault('GITHUB_USERNAME', 'sonicaj')
     config.setdefault('GITHUB_EMAIL', 'waqarsonic1@gmail.com')
+    config.setdefault('GITHUB_REVIEWER', 'sonicaj')
     return config
 
 
@@ -56,6 +57,7 @@ def validate_config() -> None:
                 'GITHUB_BASE': {'type': 'string'},
                 'GITHUB_USERNAME': {'type': 'string'},
                 'GITHUB_EMAIL': {'type': 'string'},
+                'GITHUB_REVIEWER': {'type': 'string'},
             },
             'required': ['GITHUB_TOKEN', 'GITHUB_EMAIL', 'GITHUB_USERNAME'],
         }, get_config())
@@ -75,7 +77,7 @@ def push_changes_upstream(train_path: str, summary: dict, branch: str) -> None:
         commit_changes(train_path, message, config['GITHUB_USERNAME'], config['GITHUB_EMAIL'])
         push_changes(train_path, config['GITHUB_TOKEN'], branch, config.get('GITHUB_ORIGIN'))
         print('[\033[92mOK\x1B[0m]\tCreating a PR')
-        create_pull_request(train_path, config['GITHUB_BASE'], branch, config)
+        create_pull_request(train_path, config['GITHUB_BASE'], branch, config['GITHUB_REVIEWER'], config)
     except Exception as e:
         print(f'[\033[91mFAILED\x1B[0m]\tFailed to create a PR with upgraded item versions: {e}')
         exit(1)

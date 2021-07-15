@@ -40,8 +40,11 @@ def get_origin_uri(path: str) -> str:
     return run(['git', '-C', path, 'remote', 'get-url', 'origin']).stdout.strip()
 
 
-def create_pull_request(path: str, base_branch: str, branch: str, config: Optional[dict] = None) -> None:
-    run(f'cd {path} && gh pr create -f -B {base_branch} -H {branch} -r sonicaj', shell=True, env=config)
+def create_pull_request(
+    path: str, base_branch: str, branch: str, reviewer: Optional[str], config: Optional[dict] = None
+) -> None:
+    review_args = f' -r {reviewer}' if reviewer else ''
+    run(f'cd {path} && gh pr create -f -B {base_branch} -H {branch}{review_args}', shell=True, env=config)
 
 
 def generate_branch_name():
