@@ -99,7 +99,7 @@ would look for the same keys as it did for `filename` and update the relevant ke
 
 #### 2. `upgrade_strategy`
 
-`upgrade_strategy` is an executable file which should accept the following format as input:
+`upgrade_strategy` is an executable file which should accept the following format as input via stdin:
 
 ```
 {
