@@ -4,6 +4,7 @@ import itertools
 import os
 import shutil
 import subprocess
+import tempfile
 import yaml
 
 from catalog_validation.validation import validate_catalog_item
@@ -192,13 +193,13 @@ class Item:
                 keys_details[key]['error'] = None
 
         # We have information on each available image now, let's pass it to upgrade strategy
-        cp = run(
-            [self.upgrade_strategy_path, json.dumps({k: v['available_tags'] for k, v in keys_details.items()})],
-            check=False
-        )
-        if cp.returncode:
-            summary['error'] = f'Failed to retrieve latest available image tag(s): {cp.stderr}'
-            return summary
+        with tempfile.NamedTemporaryFile(mode='w') as f:
+            f.write(json.dumps({k: v['available_tags'] for k, v in keys_details.items()}))
+            f.flush()
+            cp = run(f'cat {f.name} | {self.upgrade_strategy_path}', check=False, shell=True)
+            if cp.returncode:
+                summary['error'] = f'Failed to retrieve latest available image tag(s): {cp.stderr}'
+                return summary
 
         try:
             strategy_output = json.loads(cp.stdout)
