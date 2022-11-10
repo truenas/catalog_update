@@ -41,9 +41,9 @@ def get_origin_uri(path: str) -> str:
 
 
 def create_pull_request(
-    path: str, base_branch: str, branch: str, reviewer: Optional[str], config: Optional[dict] = None
+    path: str, base_branch: str, branch: str, reviewers: Optional[list], config: Optional[dict] = None
 ) -> None:
-    review_args = f' -r {reviewer}' if reviewer else ''
+    review_args = f' -r {",".join(reviewers)}' if reviewers else ''
     run(f'cd {path} && gh pr create -f -B {base_branch} -H {branch}{review_args}', shell=True, env=config)
 
 

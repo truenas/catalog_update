@@ -44,7 +44,7 @@ def get_config() -> dict:
     config.setdefault('GITHUB_BASE', 'master')
     config.setdefault('GITHUB_USERNAME', 'sonicaj')
     config.setdefault('GITHUB_EMAIL', 'waqarsonic1@gmail.com')
-    config.setdefault('GITHUB_REVIEWER', 'sonicaj')
+    config.setdefault('GITHUB_REVIEWER', ['sonicaj', 'stavros-k'])
     return config
 
 
