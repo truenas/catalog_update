@@ -3,7 +3,6 @@ import argparse
 import distutils.dir_util
 import functools
 import os
-import shutil
 import textwrap
 
 from catalog_update.exceptions import TrainNotFound
@@ -13,14 +12,13 @@ from catalog_update.git_utils import (
 from catalog_update.update import update_items_in_train
 from dotenv import dotenv_values
 from jsonschema import validate as json_schema_validate, ValidationError as JsonValidationError
-from pkg_resources import parse_version
 
 
-def update_items(catalog_path: str, remove_old_versions: bool, train_name: str) -> dict:
+def update_items(catalog_path: str, train_name: str) -> dict:
     print(f'[\033[92mOK\x1B[0m]\tLooking to update catalog item(s) in {train_name!r} train')
     train_path = os.path.join(catalog_path, train_name)
     try:
-        summary = update_items_in_train(train_path, remove_old_versions)
+        summary = update_items_in_train(train_path)
     except TrainNotFound:
         print(f'[\033[91mFAILED\x1B[0m]\tSpecified {train_path!r} path does not exist')
         exit(1)
@@ -100,14 +98,14 @@ def checkout_update_repo(path: str, branch: str) -> None:
 
 
 def update_action(
-    path: str, train: str, stable_train: str, remove_old_versions: bool, push: bool, update_stable_train: bool,
+    path: str, train: str, stable_train: str, push: bool, update_stable_train: bool,
 ):
     branch_name = generate_branch_name()
     if push:
         validate_config()
         checkout_update_repo(path, branch_name)
 
-    summary = update_items(path, remove_old_versions, train)
+    summary = update_items(path, train)
     if push:
         if summary['upgraded']:
             if update_stable_train:
@@ -130,14 +128,6 @@ def update_action(
                         test_item_path, os.path.join(stable_item_path, details['new_version']),
                         preserve_symlinks=True
                     )
-                    if remove_old_versions:
-                        for version in sorted(
-                            map(parse_version, filter(
-                                lambda p: os.path.isdir(os.path.join(stable_item_path, p)), os.listdir(stable_item_path)
-                            )),
-                            reverse=True
-                        )[1:]:
-                            shutil.rmtree(os.path.join(stable_item_path, str(version)))
             push_changes_upstream(path, summary, branch_name)
         else:
             print('[\033[91mNo Items upgraded\x1B[0m]')
@@ -154,9 +144,6 @@ def main() -> None:
     update.add_argument('--path', help='Specify path to a valid TrueNAS compliant catalog', required=True)
     update.add_argument('--train', help='Specify name of train in TrueNAS compliant catalog', default='test')
     update.add_argument(
-        '--remove-old-versions', '-r', action='store_true', help='Remove old version of catalog item', default=False
-    )
-    update.add_argument(
         '--push', '-p', action='store_true', help='Push changes to git repository with provided credentials',
         default=False
     )
@@ -169,7 +156,7 @@ def main() -> None:
     args = parser.parse_args()
     if args.action == 'update':
         update_action(
-            args.path, args.train, args.stable_train, args.remove_old_versions, args.push, args.update_stable_train
+            args.path, args.train, args.stable_train, args.push, args.update_stable_train
         )
     else:
         parser.print_help()
