@@ -1,13 +1,12 @@
-import distutils.dir_util
 import json
 import itertools
 import os
-import shutil
 import subprocess
 import tempfile
 import yaml
 
-from catalog_validation.validation import validate_catalog_item
+from catalog_validation.ci.validate import validate_app
+from catalog_validation.ci.utils import get_app_version
 from collections import defaultdict
 from jsonschema import validate as json_schema_validate, ValidationError as JsonValidationError
 from pkg_resources import parse_version
@@ -47,7 +46,7 @@ class Item:
         return os.path.isfile(self.upgrade_info_path)
 
     def validate(self) -> None:
-        validate_catalog_item(self.path, 'catalog_update')
+        validate_app(self.path, 'catalog_update')
 
     @property
     def upgrade_info_schema(self) -> dict:
@@ -82,11 +81,7 @@ class Item:
 
     @property
     def latest_version(self) -> str:
-        # We assume that we have at least one version available and that should be
-        # validated by catalog_validation as well
-        all_versions = [parse_version(d) for d in os.listdir(self.path) if os.path.isdir(os.path.join(self.path, d))]
-        all_versions.sort()
-        return str(all_versions[-1])
+        return get_app_version(self.path)
 
     @property
     def image_schema(self) -> dict:
@@ -154,7 +149,7 @@ class Item:
             summary['error'] = str(e)
             return summary
 
-        values_file = os.path.join(self.path, summary['latest_version'], upgrade_info['filename'])
+        values_file = os.path.join(self.path, upgrade_info['filename'])
         summary['upgrade_details']['filename'] = upgrade_info['filename']
         summary['upgrade_details']['test_filename'] = upgrade_info.get('test_filename')
         if not os.path.exists(values_file):
@@ -234,26 +229,14 @@ class Item:
         v = parse_version(self.latest_version)
         return str(parse_version(f'{v.major}.{v.minor}.{v.micro + 1}'))
 
-    @property
-    def bump_version_path(self) -> str:
-        return os.path.join(self.path, self.bump_version)
-
-    @property
-    def latest_version_path(self) -> str:
-        return os.path.join(self.path, self.latest_version)
-
-    def upgrade(self, remove_old_version: bool = False) -> dict:
+    def upgrade(self) -> dict:
         summary = self.upgrade_summary()
         if summary['error']:
             return summary
 
-        current_version_path = self.latest_version_path
-        new_path = self.bump_version_path
-        new_version = new_path.rsplit('/', 1)[-1]
-        distutils.dir_util._path_created = {}
-        distutils.dir_util.copy_tree(current_version_path, new_path, preserve_symlinks=True)
+        new_version = self.bump_version
 
-        with open(os.path.join(new_path, summary['upgrade_details']['filename']), 'r') as f:
+        with open(os.path.join(self.path, summary['upgrade_details']['filename']), 'r') as f:
             values = yaml.safe_load(f.read())
 
         for key, value in summary['upgrade_details']['keys'].items():
@@ -262,10 +245,10 @@ class Item:
             image = get(values, key)
             image['tag'] = value['latest_tag']
 
-        with open(os.path.join(new_path, summary['upgrade_details']['filename']), 'w') as f:
+        with open(os.path.join(self.path, summary['upgrade_details']['filename']), 'w') as f:
             f.write(yaml.safe_dump(values))
 
-        test_values_path = os.path.join(new_path, summary['upgrade_details']['test_filename'] or '')
+        test_values_path = os.path.join(self.path, summary['upgrade_details']['test_filename'] or '')
         if summary['upgrade_details']['test_filename'] and os.path.exists(test_values_path):
             with open(os.path.join(test_values_path), 'r') as f:
                 test_values = yaml.safe_load(f.read())
@@ -281,7 +264,7 @@ class Item:
             with open(test_values_path, 'w') as f:
                 f.write(yaml.safe_dump(test_values))
 
-        chart_file_path = os.path.join(new_path, 'Chart.yaml')
+        chart_file_path = os.path.join(self.path, 'Chart.yaml')
         with open(chart_file_path, 'r') as f:
             chart = yaml.safe_load(f.read())
 
@@ -292,12 +275,9 @@ class Item:
         with open(chart_file_path, 'w') as f:
             f.write(yaml.safe_dump(chart))
 
-        if remove_old_version:
-            shutil.rmtree(current_version_path)
-
         summary.update({
             'upgraded': True,
             'new_version': new_version,
-            'new_version_path': new_path,
+            'new_version_path': self.path,
         })
         return summary
