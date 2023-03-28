@@ -97,9 +97,7 @@ def checkout_update_repo(path: str, branch: str) -> None:
         exit(1)
 
 
-def update_action(
-    path: str, train: str, stable_train: str, push: bool, update_stable_train: bool,
-):
+def update_action(path: str, train: str, push: bool):
     branch_name = generate_branch_name()
     if push:
         validate_config()
@@ -108,26 +106,6 @@ def update_action(
     summary = update_items(path, train)
     if push:
         if summary['upgraded']:
-            if update_stable_train:
-                print('[\033[91mUpdating stable train\x1B[0m]')
-                stable_train_path = os.path.join(path, stable_train)
-                if not os.path.exists(stable_train_path):
-                    print(f'[\033[91mFAILED\x1B[0m]\t{stable_train!r} does not exist')
-                    exit(1)
-                for item_name, details in summary['upgraded'].items():
-                    test_item_path = os.path.join(path, train, item_name, details['new_version'])
-                    stable_item_path = os.path.join(stable_train_path, item_name)
-                    if not os.path.exists(stable_item_path):
-                        print(
-                            f'[\033[91mSkipping {item_name!r} update as it cannot be '
-                            f'found in {stable_train!r} train\x1B[0m]'
-                        )
-                        continue
-                    distutils.dir_util._path_created = {}
-                    distutils.dir_util.copy_tree(
-                        test_item_path, os.path.join(stable_item_path, details['new_version']),
-                        preserve_symlinks=True
-                    )
             push_changes_upstream(path, summary, branch_name)
         else:
             print('[\033[91mNo Items upgraded\x1B[0m]')
@@ -147,17 +125,10 @@ def main() -> None:
         '--push', '-p', action='store_true', help='Push changes to git repository with provided credentials',
         default=False
     )
-    update.add_argument(
-        '--update-stable-train', '-su', action='store_true', help='Update stable train',
-        default=False
-    )
-    update.add_argument('--stable-train', help='Specify name of stable in TrueNAS compliant catalog', default='charts')
 
     args = parser.parse_args()
     if args.action == 'update':
-        update_action(
-            args.path, args.train, args.stable_train, args.push, args.update_stable_train
-        )
+        update_action(args.path, args.train, args.push)
     else:
         parser.print_help()
 
