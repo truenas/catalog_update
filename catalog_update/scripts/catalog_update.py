@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import argparse
-import distutils.dir_util
 import functools
 import os
 import textwrap
@@ -64,19 +63,19 @@ def validate_config() -> None:
         exit(1)
 
 
-def push_changes_upstream(train_path: str, summary: dict, branch: str) -> None:
+def push_changes_upstream(catalog_path: str, upgraded_apps: list, branch: str) -> None:
     print('[\033[92mOK\x1B[0m]\tPushing changed items upstream')
     try:
         config = get_config()
         message = textwrap.dedent(f'''Upgraded catalog item(s)
 
-        This commit upgrades {", ".join(summary["upgraded"])} catalog item(s).
+        This commit upgrades {", ".join(upgraded_apps)} catalog item(s).
         ''')
-        commit_changes(train_path, message, config['GITHUB_USERNAME'], config['GITHUB_EMAIL'])
-        push_changes(train_path, config['GITHUB_TOKEN'], branch, config.get('GITHUB_ORIGIN'))
+        commit_changes(catalog_path, message, config['GITHUB_USERNAME'], config['GITHUB_EMAIL'])
+        push_changes(catalog_path, config['GITHUB_TOKEN'], branch, config.get('GITHUB_ORIGIN'))
         print('[\033[92mOK\x1B[0m]\tCreating a PR')
         create_pull_request(
-            train_path, config['GITHUB_BASE'], branch, config['GITHUB_REVIEWER'], {
+            catalog_path, config['GITHUB_BASE'], branch, config['GITHUB_REVIEWER'], {
                 k: v for k, v in config.items() if k != 'GITHUB_REVIEWER'
             }
         )
@@ -97,18 +96,23 @@ def checkout_update_repo(path: str, branch: str) -> None:
         exit(1)
 
 
-def update_action(path: str, train: str, push: bool):
+def update_action(path: str, upgraded_apps: list):
     branch_name = generate_branch_name()
-    if push:
-        validate_config()
-        checkout_update_repo(path, branch_name)
+    validate_config()
+    checkout_update_repo(path, branch_name)
 
-    summary = update_items(path, train)
-    if push:
-        if summary['upgraded']:
-            push_changes_upstream(path, summary, branch_name)
-        else:
-            print('[\033[91mNo Items upgraded\x1B[0m]')
+    push_changes_upstream(path, upgraded_apps, branch_name)
+
+
+def update_trains(catalog_path: str, push: bool) -> None:
+    upgraded_apps = []
+    for train in filter(lambda path: os.path.isdir(os.path.join(catalog_path, path)), os.listdir(catalog_path)):
+        upgraded_apps.extend(update_items(catalog_path, train)['upgraded'].keys())
+
+    if push and upgraded_apps:
+        update_action(catalog_path, upgraded_apps)
+    else:
+        print('[\033[91mNo Items upgraded\x1B[0m]')
 
 
 def main() -> None:
@@ -120,7 +124,6 @@ def main() -> None:
         'update', help='Update version of catalog item(s) if newer image versions are available'
     )
     update.add_argument('--path', help='Specify path to a valid TrueNAS compliant catalog', required=True)
-    update.add_argument('--train', help='Specify name of train in TrueNAS compliant catalog', default='test')
     update.add_argument(
         '--push', '-p', action='store_true', help='Push changes to git repository with provided credentials',
         default=False
@@ -128,7 +131,7 @@ def main() -> None:
 
     args = parser.parse_args()
     if args.action == 'update':
-        update_action(args.path, args.train, args.push)
+        update_trains(args.path, args.push)
     else:
         parser.print_help()
 
