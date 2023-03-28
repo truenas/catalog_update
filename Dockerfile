@@ -15,6 +15,7 @@ RUN mkdir -p ${WORK_DIR}
 WORKDIR ${WORK_DIR}
 
 ADD . ${WORK_DIR}/
+RUN git config --global --add safe.directory /catalog
 RUN pip install -r requirements.txt
 RUN pip install -U .
-ENTRYPOINT ["catalog_update", "update", "-p", "-r", "-su", "--path", "/catalog"]
+ENTRYPOINT ["catalog_update", "update", "-p", "--path", "/catalog/library/ix-dev"]

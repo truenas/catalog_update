@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 import argparse
-import distutils.dir_util
 import functools
 import os
-import shutil
 import textwrap
 
 from catalog_update.exceptions import TrainNotFound
@@ -13,14 +11,13 @@ from catalog_update.git_utils import (
 from catalog_update.update import update_items_in_train
 from dotenv import dotenv_values
 from jsonschema import validate as json_schema_validate, ValidationError as JsonValidationError
-from pkg_resources import parse_version
 
 
-def update_items(catalog_path: str, remove_old_versions: bool, train_name: str) -> dict:
+def update_items(catalog_path: str, train_name: str) -> dict:
     print(f'[\033[92mOK\x1B[0m]\tLooking to update catalog item(s) in {train_name!r} train')
     train_path = os.path.join(catalog_path, train_name)
     try:
-        summary = update_items_in_train(train_path, remove_old_versions)
+        summary = update_items_in_train(train_path)
     except TrainNotFound:
         print(f'[\033[91mFAILED\x1B[0m]\tSpecified {train_path!r} path does not exist')
         exit(1)
@@ -66,19 +63,19 @@ def validate_config() -> None:
         exit(1)
 
 
-def push_changes_upstream(train_path: str, summary: dict, branch: str) -> None:
+def push_changes_upstream(catalog_path: str, upgraded_apps: list, branch: str) -> None:
     print('[\033[92mOK\x1B[0m]\tPushing changed items upstream')
     try:
         config = get_config()
         message = textwrap.dedent(f'''Upgraded catalog item(s)
 
-        This commit upgrades {", ".join(summary["upgraded"])} catalog item(s).
+        This commit upgrades {", ".join(upgraded_apps)} catalog item(s).
         ''')
-        commit_changes(train_path, message, config['GITHUB_USERNAME'], config['GITHUB_EMAIL'])
-        push_changes(train_path, config['GITHUB_TOKEN'], branch, config.get('GITHUB_ORIGIN'))
+        commit_changes(catalog_path, message, config['GITHUB_USERNAME'], config['GITHUB_EMAIL'])
+        push_changes(catalog_path, config['GITHUB_TOKEN'], branch, config.get('GITHUB_ORIGIN'))
         print('[\033[92mOK\x1B[0m]\tCreating a PR')
         create_pull_request(
-            train_path, config['GITHUB_BASE'], branch, config['GITHUB_REVIEWER'], {
+            catalog_path, config['GITHUB_BASE'], branch, config['GITHUB_REVIEWER'], {
                 k: v for k, v in config.items() if k != 'GITHUB_REVIEWER'
             }
         )
@@ -99,48 +96,19 @@ def checkout_update_repo(path: str, branch: str) -> None:
         exit(1)
 
 
-def update_action(
-    path: str, train: str, stable_train: str, remove_old_versions: bool, push: bool, update_stable_train: bool,
-):
+def update_trains(catalog_path: str, push: bool) -> None:
     branch_name = generate_branch_name()
-    if push:
-        validate_config()
-        checkout_update_repo(path, branch_name)
+    repo_path = catalog_path.replace('/library/ix-dev', '')
+    checkout_update_repo(repo_path, branch_name)
+    upgraded_apps = []
+    for train in filter(lambda path: os.path.isdir(os.path.join(catalog_path, path)), os.listdir(catalog_path)):
+        upgraded_apps.extend(update_items(catalog_path, train)['upgraded'].keys())
 
-    summary = update_items(path, remove_old_versions, train)
-    if push:
-        if summary['upgraded']:
-            if update_stable_train:
-                print('[\033[91mUpdating stable train\x1B[0m]')
-                stable_train_path = os.path.join(path, stable_train)
-                if not os.path.exists(stable_train_path):
-                    print(f'[\033[91mFAILED\x1B[0m]\t{stable_train!r} does not exist')
-                    exit(1)
-                for item_name, details in summary['upgraded'].items():
-                    test_item_path = os.path.join(path, train, item_name, details['new_version'])
-                    stable_item_path = os.path.join(stable_train_path, item_name)
-                    if not os.path.exists(stable_item_path):
-                        print(
-                            f'[\033[91mSkipping {item_name!r} update as it cannot be '
-                            f'found in {stable_train!r} train\x1B[0m]'
-                        )
-                        continue
-                    distutils.dir_util._path_created = {}
-                    distutils.dir_util.copy_tree(
-                        test_item_path, os.path.join(stable_item_path, details['new_version']),
-                        preserve_symlinks=True
-                    )
-                    if remove_old_versions:
-                        for version in sorted(
-                            map(parse_version, filter(
-                                lambda p: os.path.isdir(os.path.join(stable_item_path, p)), os.listdir(stable_item_path)
-                            )),
-                            reverse=True
-                        )[1:]:
-                            shutil.rmtree(os.path.join(stable_item_path, str(version)))
-            push_changes_upstream(path, summary, branch_name)
-        else:
-            print('[\033[91mNo Items upgraded\x1B[0m]')
+    if push and upgraded_apps:
+        validate_config()
+        push_changes_upstream(repo_path, upgraded_apps, branch_name)
+    else:
+        print('[\033[91mNo Items upgraded\x1B[0m]')
 
 
 def main() -> None:
@@ -152,25 +120,14 @@ def main() -> None:
         'update', help='Update version of catalog item(s) if newer image versions are available'
     )
     update.add_argument('--path', help='Specify path to a valid TrueNAS compliant catalog', required=True)
-    update.add_argument('--train', help='Specify name of train in TrueNAS compliant catalog', default='test')
-    update.add_argument(
-        '--remove-old-versions', '-r', action='store_true', help='Remove old version of catalog item', default=False
-    )
     update.add_argument(
         '--push', '-p', action='store_true', help='Push changes to git repository with provided credentials',
         default=False
     )
-    update.add_argument(
-        '--update-stable-train', '-su', action='store_true', help='Update stable train',
-        default=False
-    )
-    update.add_argument('--stable-train', help='Specify name of stable in TrueNAS compliant catalog', default='charts')
 
     args = parser.parse_args()
     if args.action == 'update':
-        update_action(
-            args.path, args.train, args.stable_train, args.remove_old_versions, args.push, args.update_stable_train
-        )
+        update_trains(args.path, args.push)
     else:
         parser.print_help()
 
