@@ -96,21 +96,17 @@ def checkout_update_repo(path: str, branch: str) -> None:
         exit(1)
 
 
-def update_action(path: str, upgraded_apps: list):
-    branch_name = generate_branch_name()
-    validate_config()
-    checkout_update_repo(path, branch_name)
-
-    push_changes_upstream(path, upgraded_apps, branch_name)
-
-
 def update_trains(catalog_path: str, push: bool) -> None:
+    branch_name = generate_branch_name()
+    repo_path = catalog_path.replace('/library/ix-dev', '')
+    checkout_update_repo(repo_path, branch_name)
     upgraded_apps = []
     for train in filter(lambda path: os.path.isdir(os.path.join(catalog_path, path)), os.listdir(catalog_path)):
         upgraded_apps.extend(update_items(catalog_path, train)['upgraded'].keys())
 
     if push and upgraded_apps:
-        update_action(catalog_path, upgraded_apps)
+        validate_config()
+        push_changes_upstream(repo_path, upgraded_apps, branch_name)
     else:
         print('[\033[91mNo Items upgraded\x1B[0m]')
 
