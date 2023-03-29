@@ -246,7 +246,7 @@ class Item:
             image['tag'] = value['latest_tag']
 
         with open(os.path.join(self.path, summary['upgrade_details']['filename']), 'w') as f:
-            f.write(yaml.safe_dump(values, sort_keys=False))
+            f.write(yaml.safe_dump(values, sort_keys=False, indent=2))
 
         test_values_path = os.path.join(self.path, summary['upgrade_details']['test_filename'] or '')
         if summary['upgrade_details']['test_filename'] and os.path.exists(test_values_path):
@@ -262,7 +262,7 @@ class Item:
                 image['tag'] = value['latest_tag']
 
             with open(test_values_path, 'w') as f:
-                f.write(yaml.safe_dump(test_values, sort_keys=False))
+                f.write(yaml.safe_dump(test_values, sort_keys=False, indent=2))
 
         chart_file_path = os.path.join(self.path, 'Chart.yaml')
         with open(chart_file_path, 'r') as f:
@@ -273,7 +273,7 @@ class Item:
             chart['appVersion'] = summary['upgrade_details']['new_app_version']
 
         with open(chart_file_path, 'w') as f:
-            f.write(yaml.safe_dump(chart, sort_keys=False))
+            f.write(yaml.safe_dump(chart, sort_keys=False, indent=2))
 
         summary.update({
             'upgraded': True,
