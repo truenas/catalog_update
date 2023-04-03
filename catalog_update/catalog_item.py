@@ -1,9 +1,9 @@
-import json
 import itertools
+import json
 import os
+import ruamel.yaml
 import subprocess
 import tempfile
-import yaml
 
 from catalog_validation.ci.validate import validate_app
 from catalog_validation.ci.utils import get_app_version
@@ -18,6 +18,9 @@ from .utils import get, run
 
 
 class Item:
+
+    YAML = ruamel.yaml.YAML()
+
     def __init__(self, path: str):
         self.path = path
 
@@ -162,8 +165,8 @@ class Item:
 
         with open(values_file, 'r') as f:
             try:
-                values = yaml.safe_load(f.read())
-            except yaml.YAMLError:
+                values = self.YAML.load(f.read())
+            except ruamel.yaml.scanner.ScannerError:
                 summary['error'] = f'{values_file!r} is an invalid yaml file'
                 return summary
 
@@ -230,6 +233,7 @@ class Item:
         return str(parse_version(f'{v.major}.{v.minor}.{v.micro + 1}'))
 
     def upgrade(self) -> dict:
+        self.YAML.indent(mapping=2, sequence=4, offset=2)
         summary = self.upgrade_summary()
         if summary['error']:
             return summary
@@ -237,7 +241,7 @@ class Item:
         new_version = self.bump_version
 
         with open(os.path.join(self.path, summary['upgrade_details']['filename']), 'r') as f:
-            values = yaml.safe_load(f.read())
+            values = self.YAML.load(f.read())
 
         for key, value in summary['upgrade_details']['keys'].items():
             if value['error'] or value['latest_tag'] == value['current_tag']:
@@ -246,12 +250,12 @@ class Item:
             image['tag'] = value['latest_tag']
 
         with open(os.path.join(self.path, summary['upgrade_details']['filename']), 'w') as f:
-            f.write(yaml.safe_dump(values, sort_keys=False, indent=2))
+            self.YAML.dump(values, f)
 
         test_values_path = os.path.join(self.path, summary['upgrade_details']['test_filename'] or '')
         if summary['upgrade_details']['test_filename'] and os.path.exists(test_values_path):
             with open(os.path.join(test_values_path), 'r') as f:
-                test_values = yaml.safe_load(f.read())
+                test_values = self.YAML.load(f.read())
 
             for key, value in summary['upgrade_details']['keys'].items():
                 if value['error'] or value['latest_tag'] == value['current_tag']:
@@ -262,18 +266,18 @@ class Item:
                 image['tag'] = value['latest_tag']
 
             with open(test_values_path, 'w') as f:
-                f.write(yaml.safe_dump(test_values, sort_keys=False, indent=2))
+                self.YAML.dump(test_values, f)
 
         chart_file_path = os.path.join(self.path, 'Chart.yaml')
         with open(chart_file_path, 'r') as f:
-            chart = yaml.safe_load(f.read())
+            chart = self.YAML.load(f.read())
 
         chart['version'] = new_version
         if summary['upgrade_details']['new_app_version']:
             chart['appVersion'] = summary['upgrade_details']['new_app_version']
 
         with open(chart_file_path, 'w') as f:
-            f.write(yaml.safe_dump(chart, sort_keys=False, indent=2))
+            self.YAML.dump(chart, f)
 
         summary.update({
             'upgraded': True,
